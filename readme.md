@@ -152,4 +152,4 @@ Une courte vidéo de démonstration accompagne ce projet et présente :
 - L’ingestion des tickets
 - Les traitements Spark en temps réel
 
-📹 <a href"https://www.loom.com/share/b77b8b460e284563b798f538fdab5176">Démonstration du pipeline</a>
+📹 <a href="https://www.loom.com/share/b77b8b460e284563b798f538fdab5176">Démonstration du pipeline</a>
