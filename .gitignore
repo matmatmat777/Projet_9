@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Spark
+spark-warehouse/
+checkpoints/
+
+# Docker
+*.log
+
+# Data locale
+data/

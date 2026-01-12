@@ -1,0 +1,74 @@
+version: "3.8"
+
+services:
+
+  redpanda:
+    image: redpandadata/redpanda:latest
+    container_name: redpanda
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --reserve-memory
+      - 0M
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - INTERNAL://redpanda:9092,EXTERNAL://localhost:19092
+    ports:
+      - "19092:19092"
+
+  redpanda-console:
+    image: redpandadata/console:latest
+    container_name: redpanda-console
+    depends_on:
+      - redpanda
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+
+  producer:
+    build: ./producer
+    container_name: producer
+    depends_on:
+      - redpanda
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+
+  spark-consumer:
+    build: ./spark
+    container_name: spark-consumer
+    depends_on:
+      - redpanda
+    ports:
+      - "4040:4040"
+    volumes:
+      - ./data:/data
+    command: >
+      spark-submit
+      --master local[*]
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.1
+      spark_consumer.py
+
+  spark-consumer-agg:
+    build: ./spark
+    container_name: spark-consumer-agg
+    depends_on:
+      - redpanda
+    ports:
+      - "4041:4040"
+    volumes:
+      - ./data:/data
+    command: >
+      spark-submit
+      --master local[*]
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.1
+      spark_consumer_agg.py
