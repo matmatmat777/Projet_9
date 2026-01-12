@@ -86,7 +86,7 @@ flowchart LR
 - Environnement Linux / **WSL recommandé**
 
 ### Commande de démarrage
-```bash
+
 docker compose up --build
 
 ## Services démarrés
