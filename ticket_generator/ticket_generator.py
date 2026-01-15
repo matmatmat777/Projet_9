@@ -12,11 +12,11 @@ KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "redpanda:9092")
 TOPIC_NAME = "client_tickets"
 
 # Attente active de Redpanda (indispensable en Docker)
-producer = None
+ticket_generator = None
 for attempt in range(10):
     try:
         print(f"⏳ Connexion à Kafka (tentative {attempt + 1}/10)...")
-        producer = KafkaProducer(
+        ticket_generator = KafkaProducer(
             bootstrap_servers=KAFKA_BROKER,
             value_serializer=lambda v: json.dumps(v).encode("utf-8"),
             retries=5,
@@ -28,7 +28,7 @@ for attempt in range(10):
         print("❌ Kafka indisponible, nouvelle tentative dans 2s...")
         time.sleep(2)
 
-if producer is None:
+if ticket_generator is None:
     raise RuntimeError("🚨 Impossible de se connecter à Kafka (Redpanda)")
 
 TICKET_TYPES = ["incident", "demande", "question"]
@@ -61,8 +61,8 @@ def produce_tickets(interval_seconds=2):
     print("🚀 Producteur de tickets démarré...")
     while True:
         ticket = generate_ticket()
-        producer.send(TOPIC_NAME, ticket)
-        producer.flush()
+        ticket_generator.send(TOPIC_NAME, ticket)
+        ticket_generator.flush()
         print(f"📨 Ticket envoyé : {ticket}")
         time.sleep(interval_seconds)
 

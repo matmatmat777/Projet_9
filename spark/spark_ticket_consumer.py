@@ -1,6 +1,6 @@
 """ spark-submit \
 --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.1 \
-spark/spark_consumer.py """
+spark/spark_ticket_consumer.py """
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col, when
 from pyspark.sql.types import StructType, StringType

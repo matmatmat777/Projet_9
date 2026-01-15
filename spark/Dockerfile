@@ -6,5 +6,5 @@ ENV SPARK_HOME=/opt/spark
 ENV PATH=$SPARK_HOME/bin:$PATH
 
 WORKDIR /app
-COPY spark_consumer.py .
-COPY spark_consumer_agg.py .
+COPY spark_ticket_consumer.py .
+COPY spark_ticket_aggregation.py .

@@ -35,17 +35,17 @@ services:
     environment:
       KAFKA_BROKERS: redpanda:9092
 
-  producer:
-    build: ./producer
-    container_name: producer
+  ticket_generator:
+    build: ./ticket_generator
+    container_name: ticket_generator
     depends_on:
       - redpanda
     environment:
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
 
-  spark-consumer:
+  spark_ticket_consumer:
     build: ./spark
-    container_name: spark-consumer
+    container_name: spark_ticket_consumer
     depends_on:
       - redpanda
     ports:
@@ -56,11 +56,11 @@ services:
       spark-submit
       --master local[*]
       --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.1
-      spark_consumer.py
+      spark_ticket_consumer.py
 
-  spark-consumer-agg:
+  spark_ticket_aggregation:
     build: ./spark
-    container_name: spark-consumer-agg
+    container_name: spark_ticket_aggregation
     depends_on:
       - redpanda
     ports:
@@ -71,4 +71,4 @@ services:
       spark-submit
       --master local[*]
       --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.1
-      spark_consumer_agg.py
+      spark_ticket_aggregation.py
