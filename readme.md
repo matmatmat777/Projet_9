@@ -36,7 +36,7 @@ Chaque ticket client contient les champs suivants :
 
 ## Architecture du pipeline
 
-![Diagramme du pipeline streaming](media/Diagrammeexercice2.drawio.png)
+![Diagramme du pipeline streaming](media/Diagrammeexercice2.drawio1.png)
 
 ### Flux global
 
