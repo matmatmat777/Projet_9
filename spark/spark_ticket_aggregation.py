@@ -1,57 +1,81 @@
-""" spark-submit \
---packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.1 \
-spark/spark_ticket_aggregation.py """
-
-
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col, count
-from pyspark.sql.types import StructType, StringType
+from pyspark.sql.types import StructType, StructField, StringType
 
-print(">>> STREAM 2 — AGRÉGATION CUMULÉE <<<")
-# Initialisation de la session Spark
+print(">>> STREAM — AGRÉGATION TICKETS <<<")
+
 spark = (
     SparkSession.builder
     .appName("TicketsAggregationStream")
     .getOrCreate()
 )
-# Réduction du niveau de log pour éviter la surcharge de la console
-spark.sparkContext.setLogLevel("WARN")
-# Lecture du flux Kafka
+
+spark.sparkContext.setLogLevel("ERROR")
+
 kafka_df = (
     spark.readStream
     .format("kafka")
     .option("kafka.bootstrap.servers", "redpanda:9092")
     .option("subscribe", "client_tickets")
-    .option("startingOffsets", "latest")
+    .option("startingOffsets", "earliest")
     .load()
 )
-# Schéma des données des tickets
-schema = (
-    StructType()
-    .add("ticket_id", StringType())
-    .add("client_id", StringType())
-    .add("created_at", StringType())
-    .add("request", StringType())
-    .add("type", StringType())
-    .add("priority", StringType())
+
+schema = StructType([
+    StructField("ticket_id", StringType()),
+    StructField("type", StringType())
+])
+
+tickets_df = (
+    kafka_df
+    .selectExpr("CAST(value AS STRING)")
+    .select(from_json(col("value"), schema).alias("ticket"))
+    .select("ticket.type")
+    .filter(col("type").isNotNull())
 )
-# Extraction des données des tickets depuis le flux Kafka
-tickets_df = kafka_df.select(
-    from_json(col("value").cast("string"), schema).alias("ticket")
-).select("ticket.*")
-# Agrégation cumulée du nombre de tickets par type
-agg_df = (
-    tickets_df
-    .groupBy("type")
-    .agg(count("*").alias("ticket_count"))
-)
-# Écriture du flux agrégé vers la console
-query = (
+
+agg_df = tickets_df.groupBy("type").count()
+
+# =========================
+# 1. CONSOLE (DÉMO)
+# =========================
+console_query = (
     agg_df.writeStream
+    .outputMode("complete")
     .format("console")
-    .outputMode("complete")   # cumul global
     .option("truncate", False)
     .start()
 )
 
-query.awaitTermination()
+# =========================
+# 2. POSTGRES (PERSISTENCE)
+# =========================
+def write_to_postgres(batch_df, batch_id):
+    if batch_df.isEmpty():
+        return
+
+    print(f">>> WRITE POSTGRES BATCH {batch_id}")
+    batch_df.show(truncate=False)
+
+    (
+        batch_df
+        .coalesce(1)
+        .write
+        .format("jdbc")
+        .option("url", "jdbc:postgresql://postgres:5432/ticketsdb")
+        .option("dbtable", "tickets_aggregation")
+        .option("user", "tickets")
+        .option("password", "tickets")
+        .option("driver", "org.postgresql.Driver")
+        .mode("overwrite")   # SNAPSHOT
+        .save()
+    )
+
+postgres_query = (
+    agg_df.writeStream
+    .outputMode("complete")
+    .foreachBatch(write_to_postgres)
+    .start()
+)
+
+spark.streams.awaitAnyTermination()

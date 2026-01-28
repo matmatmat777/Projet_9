@@ -35,6 +35,18 @@ services:
     environment:
       KAFKA_BROKERS: redpanda:9092
 
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_DB: ticketsdb
+      POSTGRES_USER: tickets
+      POSTGRES_PASSWORD: tickets
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   ticket_generator:
     build: ./ticket_generator
     container_name: ticket_generator
@@ -48,10 +60,9 @@ services:
     container_name: spark_ticket_consumer
     depends_on:
       - redpanda
+      - postgres
     ports:
       - "4040:4040"
-    volumes:
-      - ./data:/data
     command: >
       spark-submit
       --master local[*]
@@ -63,12 +74,14 @@ services:
     container_name: spark_ticket_aggregation
     depends_on:
       - redpanda
+      - postgres
     ports:
       - "4041:4040"
-    volumes:
-      - ./data:/data
     command: >
       spark-submit
       --master local[*]
       --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.1
       spark_ticket_aggregation.py
+
+volumes:
+  postgres_data:
