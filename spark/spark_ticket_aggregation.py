@@ -1,16 +1,10 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col, count
 from pyspark.sql.types import StructType, StructField, StringType
+import psycopg2
 
-print(">>> STREAM — AGRÉGATION TICKETS <<<")
-
-spark = (
-    SparkSession.builder
-    .appName("TicketsAggregationStream")
-    .getOrCreate()
-)
-
-spark.sparkContext.setLogLevel("ERROR")
+spark = SparkSession.builder.appName("TicketsAggregation").getOrCreate()
+spark.sparkContext.setLogLevel("WARN")
 
 kafka_df = (
     spark.readStream
@@ -36,45 +30,45 @@ tickets_df = (
 
 agg_df = tickets_df.groupBy("type").count()
 
-# =========================
-# 1. CONSOLE (DÉMO)
-# =========================
-console_query = (
-    agg_df.writeStream
-    .outputMode("complete")
-    .format("console")
-    .option("truncate", False)
-    .start()
-)
-
-# =========================
-# 2. POSTGRES (PERSISTENCE)
-# =========================
-def write_to_postgres(batch_df, batch_id):
+def write_atomic_snapshot(batch_df, batch_id):
     if batch_df.isEmpty():
         return
 
-    print(f">>> WRITE POSTGRES BATCH {batch_id}")
-    batch_df.show(truncate=False)
+    rows = batch_df.collect()
 
-    (
-        batch_df
-        .coalesce(1)
-        .write
-        .format("jdbc")
-        .option("url", "jdbc:postgresql://postgres:5432/ticketsdb")
-        .option("dbtable", "tickets_aggregation")
-        .option("user", "tickets")
-        .option("password", "tickets")
-        .option("driver", "org.postgresql.Driver")
-        .mode("overwrite")   # SNAPSHOT
-        .save()
+    conn = psycopg2.connect(
+        host="postgres",
+        dbname="ticketsdb",
+        user="tickets",
+        password="tickets"
     )
 
-postgres_query = (
+    cur = conn.cursor()
+
+    try:
+        cur.execute("BEGIN;")
+        cur.execute("TRUNCATE TABLE tickets_aggregation;")
+
+        for row in rows:
+            cur.execute(
+                "INSERT INTO tickets_aggregation (type, count) VALUES (%s, %s)",
+                (row["type"], row["count"])
+            )
+
+        cur.execute("COMMIT;")
+
+    except Exception:
+        cur.execute("ROLLBACK;")
+        raise
+    finally:
+        cur.close()
+        conn.close()
+
+(
     agg_df.writeStream
     .outputMode("complete")
-    .foreachBatch(write_to_postgres)
+    .foreachBatch(write_atomic_snapshot)
+    .option("checkpointLocation", "/tmp/checkpoints/tickets_aggregation")
     .start()
 )
 
